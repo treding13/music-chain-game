@@ -1,0 +1,179 @@
+{
+  "start": "eminem",
+  "goal": "ice-cube",
+  "artists": {
+    "eminem": {
+      "name": "Eminem"
+    },
+    "dr-dre": {
+      "name": "Dr. Dre"
+    },
+    "ice-cube": {
+      "name": "Ice Cube"
+    },
+    "rihanna": {
+      "name": "Rihanna"
+    },
+    "jay-z": {
+      "name": "Jay-Z"
+    },
+    "beyonce": {
+      "name": "Beyoncé"
+    },
+    "snoop-dogg": {
+      "name": "Snoop Dogg"
+    },
+    "50-cent": {
+      "name": "50 Cent"
+    },
+    "xhibit": {
+      "name": "Xzibit"
+    },
+    "lil-wayne": {
+      "name": "Lil Wayne"
+    },
+    "kanye-west": {
+      "name": "Kanye West"
+    },
+    "nate-dogg": {
+      "name": "Nate Dogg"
+    },
+    "pharrell": {
+      "name": "Pharrell Williams"
+    },
+    "dmx": {
+      "name": "DMX"
+    },
+    "obie-trice": {
+      "name": "Obie Trice"
+    },
+    "drake": {
+      "name": "Drake"
+    }
+  },
+  "edges": [
+    {
+      "id": "forgot-about-dre",
+      "title": "Forgot About Dre",
+      "year": 1999,
+      "artists": [
+        "dr-dre",
+        "eminem"
+      ]
+    },
+    {
+      "id": "natural-born-killaz",
+      "title": "Natural Born Killaz",
+      "year": 1994,
+      "artists": [
+        "dr-dre",
+        "ice-cube"
+      ]
+    },
+    {
+      "id": "love-the-way-you-lie",
+      "title": "Love the Way You Lie",
+      "year": 2010,
+      "artists": [
+        "eminem",
+        "rihanna"
+      ]
+    },
+    {
+      "id": "renegade",
+      "title": "Renegade",
+      "year": 2001,
+      "artists": [
+        "eminem",
+        "jay-z"
+      ]
+    },
+    {
+      "id": "patiently-waiting",
+      "title": "Patiently Waiting",
+      "year": 2003,
+      "artists": [
+        "50-cent",
+        "eminem"
+      ]
+    },
+    {
+      "id": "no-love",
+      "title": "No Love",
+      "year": 2010,
+      "artists": [
+        "eminem",
+        "lil-wayne"
+      ]
+    },
+    {
+      "id": "umbrella",
+      "title": "Umbrella",
+      "year": 2007,
+      "artists": [
+        "rihanna",
+        "jay-z"
+      ]
+    },
+    {
+      "id": "crazy-in-love",
+      "title": "Crazy in Love",
+      "year": 2003,
+      "artists": [
+        "beyonce",
+        "jay-z"
+      ]
+    },
+    {
+      "id": "bitch-please-ii",
+      "title": "Bitch Please II",
+      "year": 2000,
+      "artists": [
+        "eminem",
+        "dr-dre",
+        "snoop-dogg",
+        "xhibit",
+        "nate-dogg"
+      ]
+    },
+    {
+      "id": "still-dre",
+      "title": "Still D.R.E.",
+      "year": 1999,
+      "artists": [
+        "dr-dre",
+        "snoop-dogg"
+      ]
+    },
+    {
+      "id": "drop-it-like-its-hot",
+      "title": "Drop It Like It's Hot",
+      "year": 2004,
+      "artists": [
+        "snoop-dogg",
+        "pharrell"
+      ]
+    },
+    {
+      "id": "go-to-sleep",
+      "title": "Go to Sleep",
+      "year": 2003,
+      "artists": [
+        "eminem",
+        "dmx",
+        "obie-trice"
+      ]
+    },
+    {
+      "id": "forever",
+      "title": "Forever",
+      "year": 2009,
+      "artists": [
+        "drake",
+        "kanye-west",
+        "lil-wayne",
+        "eminem"
+      ]
+    }
+  ]
+}
