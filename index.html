@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#171122" />
+    <title>Music Chain Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <nav><a class="brand" href="/">music<span>chain</span></a><span class="beta">SAMPLE</span><button id="reset" class="text-button">New game</button></nav>
+      <section class="hero">
+        <p class="eyebrow">SIX DEGREES OF MUSIC</p>
+        <h1>Connect the artists.</h1>
+        <p class="lede">Move from one artist to the next through songs they are both credited on. Find the shortest chain.</p>
+      </section>
+      <section class="goal-card" aria-label="Game goal">
+        <div class="artist start"><span class="label">START</span><strong id="start-name">Eminem</strong></div>
+        <div class="route"><span></span><b>→</b><span></span></div>
+        <div class="artist end"><span class="label">GOAL</span><strong id="goal-name">Ice Cube</strong></div>
+      </section>
+      <section id="game" class="game-grid">
+        <div class="play-card">
+          <div class="turn-header"><div><p class="eyebrow">YOUR NEXT MOVE</p><h2 id="current-artist">Eminem</h2></div><div class="move-count"><strong id="moves">0</strong><span>moves</span></div></div>
+          <label for="artist-search">Choose a collaborator</label>
+          <div class="search-wrap"><input id="artist-search" autocomplete="off" placeholder="Search artists connected to Eminem" /><div id="suggestions" class="suggestions" role="listbox"></div></div>
+          <div id="selected-credit" class="credit-preview empty">Select an artist to see the song that connects you.</div>
+          <button id="make-move" class="primary" disabled>Make connection <span>→</span></button>
+          <p id="message" class="message" aria-live="polite"></p>
+        </div>
+        <aside class="chain-card"><p class="eyebrow">YOUR CHAIN</p><ol id="chain" class="chain"><li class="first"><span>E</span><div><strong>Eminem</strong><small>Starting artist</small></div></li></ol></aside>
+      </section>
+      <section class="rules"><div><p class="eyebrow">HOW IT WORKS</p><h2>Every move needs a song.</h2></div><p>Each adjacent pair must be credited performers on the same recording. This sample accepts lead, featured, and co-billed artist credits—no producers, writers, samples, or remixers.</p></section>
+      <footer>Music metadata prototype · Built from a local, curated graph · <a href="https://musicbrainz.org/" target="_blank" rel="noreferrer">MusicBrainz</a> is the planned metadata source</footer>
+    </main>
+    <div id="win-dialog" class="dialog-backdrop" hidden><section class="dialog"><p class="eyebrow">CHAIN COMPLETE</p><h2>You found the connection.</h2><p id="win-copy"></p><button id="play-again" class="primary">Play again <span>↻</span></button></section></div>
+    <script src="app.js"></script>
+  </body>
+</html>
