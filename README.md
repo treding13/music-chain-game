@@ -1,17 +1,15 @@
 # Music Chain Game — sample
 
-A static proof-of-concept for a six-degrees music game. It has no runtime third-party music API dependency: the browser uses the curated data in `data/music-graph.json`.
+A static six-degrees music game prototype. The browser uses curated song credits in `data/music-graph.json`, so there is no runtime music API or database cost.
 
-## Data plan
+## Data
 
-`scripts/import-musicbrainz.mjs` is a deliberately small MusicBrainz importer. It is for building a local graph, not for player traffic. It writes artist and recording credits into the same graph format, waits at least 1.1 seconds between requests, and requires a real contact URL in its User-Agent before use.
-
-The sample graph contains hand-reviewed credits so that the prototype stays compact and the game answer is explainable. Before a commercial launch, import a selected MusicBrainz core-data snapshot into the app database and review artwork licenses separately. Do not depend on the public MusicBrainz web service at runtime.
+The sample graph is deliberately small and is not a download of the full MusicBrainz database. To expand the game, import the needed fields from a MusicBrainz core-data snapshot, review lead and featured credits, and store the resulting graph with the app. Artwork requires separate rights review.
 
 ## Run locally
 
-Open `index.html` in a modern browser. No build step is required.
+Serve this folder with a local static web server. No build step is required. Opening `index.html` directly with a `file://` URL may block the JSON fetch.
 
 ## Deploy
 
-Upload this folder to Cloudflare Pages as a static site. There is no build command and the output directory is the project root.
+Cloudflare Pages is connected to this repository's `main` branch. Pushes to `main` deploy automatically at [music-chain-game.pages.dev](https://music-chain-game.pages.dev/). The project uses no build command and `.` as the output directory.
