@@ -1,0 +1,16 @@
+{
+  "source": "MusicBrainz canonical data 2026-10-03 (CC0)",
+  "start": [
+    1086342,
+    "Eminem"
+  ],
+  "goal": [
+    169939,
+    "Ice Cube"
+  ],
+  "named_artists": 1499932,
+  "multi_credit_recordings": 4568865,
+  "song_index_rows": 8624731,
+  "artist_shards": 512,
+  "song_shards": 256
+}

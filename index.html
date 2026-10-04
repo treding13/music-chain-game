@@ -12,11 +12,12 @@
   </head>
   <body>
     <main class="shell">
-      <nav><a class="brand" href="/">music<span>chain</span></a><span class="beta">SAMPLE</span><button id="reset" class="text-button">New game</button></nav>
+      <nav><a class="brand" href="/">music<span>chain</span></a><span class="beta">OPEN DATA BETA</span><button id="reset" class="text-button">New game</button></nav>
       <section class="hero">
         <p class="eyebrow">SIX DEGREES OF MUSIC</p>
         <h1>Connect the artists.</h1>
         <p class="lede">Move from one artist to the next through songs they are both credited on. Find the shortest chain.</p>
+        <p id="catalog-count" class="catalog-count">Loading the music catalog…</p>
       </section>
       <section class="goal-card" aria-label="Game goal">
         <div class="artist start"><span class="label">START</span><strong id="start-name">Eminem</strong></div>
@@ -27,19 +28,19 @@
         <div class="play-card">
           <div class="turn-header"><div><p class="eyebrow">YOUR NEXT MOVE</p><h2 id="current-artist">Eminem</h2></div><div class="move-count"><strong id="moves">0</strong><span>moves</span></div></div>
           <label for="artist-search">Choose a collaborator</label>
-          <div class="search-wrap"><input id="artist-search" autocomplete="off" placeholder="Search any artist in this sample" aria-autocomplete="list" aria-controls="artist-suggestions" /><div id="artist-suggestions" class="suggestions" role="listbox"></div></div>
+          <div class="search-wrap"><input id="artist-search" autocomplete="off" placeholder="Search artists by name" aria-autocomplete="list" aria-controls="artist-suggestions" /><div id="artist-suggestions" class="suggestions" role="listbox"></div></div>
           <div id="song-step" class="song-step" hidden>
             <label for="song-search">Which song connects them?</label>
             <div class="search-wrap"><input id="song-search" autocomplete="off" placeholder="Search songs by the selected artist" aria-autocomplete="list" aria-controls="song-suggestions" /><div id="song-suggestions" class="suggestions" role="listbox"></div></div>
-            <p class="hint">Song titles and years only. We'll check the credits after your guess.</p>
+            <p class="hint">Song titles only. We'll check the credits after your guess.</p>
           </div>
           <button id="make-move" class="primary" disabled>Make connection <span>→</span></button>
           <p id="message" class="message" aria-live="polite"></p>
         </div>
         <aside class="chain-card"><p class="eyebrow">YOUR CHAIN</p><ol id="chain" class="chain"><li class="first"><span>E</span><div><strong>Eminem</strong><small>Starting artist</small></div></li></ol></aside>
       </section>
-      <section class="rules"><div><p class="eyebrow">HOW IT WORKS</p><h2>Every move needs a song.</h2></div><p>Search for any artist in the catalog, then pick one of their songs. Your move counts only if that song credits both artists. This sample accepts lead, featured, and co-billed artists.</p></section>
-      <footer>Music metadata prototype · Built from a local, curated graph · <a href="https://musicbrainz.org/" target="_blank" rel="noreferrer">MusicBrainz</a> is the planned metadata source</footer>
+      <section class="rules"><div><p class="eyebrow">HOW IT WORKS</p><h2>Every move needs a song.</h2></div><p>Search for an artist, then pick a song credited to them. Your move counts only if a recording with that title credits both artists. The catalog uses MusicBrainz recording artist credits; band membership and uncredited guests do not count.</p></section>
+      <footer>Music metadata prototype · Built from the CC0 <a href="https://musicbrainz.org/doc/Canonical_MusicBrainz_data" target="_blank" rel="noreferrer">MusicBrainz canonical dataset</a> · No live music API calls</footer>
     </main>
     <div id="win-dialog" class="dialog-backdrop" hidden><section class="dialog"><p class="eyebrow">CHAIN COMPLETE</p><h2>You found the connection.</h2><p id="win-copy"></p><button id="play-again" class="primary">Play again <span>↻</span></button></section></div>
     <script src="app.js"></script>

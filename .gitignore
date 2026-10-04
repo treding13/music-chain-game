@@ -1,0 +1,4 @@
+data/source/
+data/work/
+*.sqlite
+*.sqlite-journal

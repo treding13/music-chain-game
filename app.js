@@ -1,29 +1,51 @@
 const state = {
-  current: 'eminem',
+  current: null,
   artist: null,
   song: null,
+  songs: [],
   moves: 0,
-  chain: [{ artist: 'eminem', song: null }],
+  chain: [],
+  artistRequest: 0,
+  songsLoaded: false,
 };
 
-let graph;
 const $ = id => document.getElementById(id);
+const shardCache = new Map();
+let catalog;
 
-fetch('data/music-graph.json')
-  .then(response => {
-    if (!response.ok) throw new Error('The music catalog could not be loaded.');
-    return response.json();
-  })
-  .then(data => { graph = data; reset(); })
-  .catch(() => { $('message').textContent = 'The music catalog could not be loaded. Please refresh the page.'; });
+function normalize(value) {
+  return value.normalize('NFKD').toLocaleLowerCase()
+    .replace(/\p{M}/gu, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim().replace(/\s+/g, ' ');
+}
+
+function bucket(prefix, count) {
+  return Array.from(prefix).slice(0, 2)
+    .reduce((value, char) => (value * 31 + char.codePointAt(0)) % count, 0);
+}
+
+async function loadShard(kind, number) {
+  const path = `data/catalog/${kind}/${String(number).padStart(3, '0')}.ndjson.gz`;
+  if (!shardCache.has(path)) {
+    shardCache.set(path, fetch(path).then(async response => {
+      if (!response.ok) throw new Error(`Could not load ${kind} catalog.`);
+      if (typeof DecompressionStream === 'undefined') {
+        throw new Error('This browser cannot open the compressed music catalog. Please use a current browser.');
+      }
+      const stream = response.body.pipeThrough(new DecompressionStream('gzip'));
+      const text = await new Response(stream).text();
+      return text.split('\n').filter(Boolean).map(line => JSON.parse(line));
+    }).catch(error => {
+      shardCache.delete(path);
+      throw error;
+    }));
+  }
+  return shardCache.get(path);
+}
 
 function initials(name) {
   return name.split(/\s+/).map(part => part[0]).slice(0, 2).join('');
-}
-
-function clearSuggestions() {
-  $('artist-suggestions').replaceChildren();
-  $('song-suggestions').replaceChildren();
 }
 
 function setMessage(text, isError = false) {
@@ -31,37 +53,42 @@ function setMessage(text, isError = false) {
   $('message').classList.toggle('error', isError);
 }
 
+function clearSuggestions() {
+  $('artist-suggestions').replaceChildren();
+  $('song-suggestions').replaceChildren();
+}
+
 function renderChain() {
   const list = $('chain');
   list.replaceChildren();
-  state.chain.forEach((step, index) => {
-    const artist = graph.artists[step.artist];
+  for (const [index, step] of state.chain.entries()) {
     const item = document.createElement('li');
     if (index === 0) item.className = 'first';
     const badge = document.createElement('span');
-    badge.textContent = initials(artist.name);
+    badge.textContent = initials(step.artist.name);
     const details = document.createElement('div');
     const title = document.createElement('strong');
-    title.textContent = artist.name;
+    title.textContent = step.artist.name;
     const caption = document.createElement('small');
-    caption.textContent = index ? `${step.song.title} · ${step.song.year}` : 'Starting artist';
+    caption.textContent = step.song ? step.song.title : 'Starting artist';
     details.append(title, caption);
     item.append(badge, details);
     list.append(item);
-  });
+  }
 }
 
 function renderTurn() {
-  const current = graph.artists[state.current];
-  $('current-artist').textContent = current.name;
+  $('current-artist').textContent = state.current.name;
   $('moves').textContent = state.moves;
   $('artist-search').value = '';
-  $('artist-search').placeholder = 'Search any artist in this sample';
   $('song-search').value = '';
   $('song-step').hidden = true;
   $('make-move').disabled = true;
   state.artist = null;
   state.song = null;
+  state.songs = [];
+  state.songsLoaded = false;
+  state.artistRequest++;
   clearSuggestions();
   renderChain();
 }
@@ -75,61 +102,118 @@ function showResults(containerId, results, onChoose) {
     button.className = 'suggestion';
     button.setAttribute('role', 'option');
     button.textContent = result.label;
-    button.addEventListener('click', () => onChoose(result.id));
+    button.addEventListener('click', () => onChoose(result));
     container.append(button);
   }
 }
 
-function searchArtists() {
+async function searchArtists() {
+  const request = ++state.artistRequest;
   state.artist = null;
   state.song = null;
+  state.songs = [];
+  state.songsLoaded = false;
   $('song-step').hidden = true;
   $('song-search').value = '';
-  $('song-suggestions').replaceChildren();
   $('make-move').disabled = true;
+  clearSuggestions();
   setMessage('');
-  const query = $('artist-search').value.trim().toLocaleLowerCase();
-  if (!query) { $('artist-suggestions').replaceChildren(); return; }
-  const results = Object.entries(graph.artists)
-    .filter(([id, artist]) => id !== state.current && artist.name.toLocaleLowerCase().includes(query))
-    .sort((a, b) => a[1].name.localeCompare(b[1].name))
-    .slice(0, 10)
-    .map(([id, artist]) => ({ id, label: artist.name }));
-  showResults('artist-suggestions', results, chooseArtist);
-  if (!results.length) setMessage('No artist with that name is in this sample catalog.');
+  const query = normalize($('artist-search').value);
+  if (!catalog) return;
+  if (query.length < 2) return;
+  const firstToken = query.split(' ')[0];
+  try {
+    const rows = await loadShard('artists', bucket(firstToken, catalog.artist_shards));
+    if (request !== state.artistRequest) return;
+    const seenNames = new Set();
+    const matches = rows.filter(([id, name]) => {
+      const normalized = normalize(name);
+      return id !== state.current.id && normalized.includes(query);
+    }).sort((a, b) => {
+      const an = normalize(a[1]);
+      const bn = normalize(b[1]);
+      return Number(bn === query) - Number(an === query)
+        || Number(bn.startsWith(query)) - Number(an.startsWith(query))
+        || b[2] - a[2] || a[1].localeCompare(b[1]);
+    });
+    const results = matches.filter(([, name]) => {
+      const normalized = normalize(name);
+      if (seenNames.has(normalized)) return false;
+      seenNames.add(normalized);
+      return true;
+    }).slice(0, 12).map(([id, name]) => ({ id, label: name, name }));
+    showResults('artist-suggestions', results, chooseArtist);
+    if (!results.length) setMessage('No artist found for that search. Try another spelling.');
+  } catch (error) {
+    if (request === state.artistRequest) setMessage(error.message, true);
+  }
 }
 
-function chooseArtist(id) {
-  state.artist = id;
+async function chooseArtist(artist) {
+  state.artistRequest++;
+  state.artist = { id: artist.id, name: artist.name };
   state.song = null;
-  $('artist-search').value = graph.artists[id].name;
+  state.songs = [];
+  state.songsLoaded = false;
+  $('artist-search').value = artist.name;
   $('artist-suggestions').replaceChildren();
   $('song-step').hidden = false;
   $('song-search').value = '';
-  $('song-search').placeholder = `Search songs by ${graph.artists[id].name}`;
+  $('song-search').placeholder = `Search songs by ${artist.name}`;
   $('make-move').disabled = true;
-  setMessage('');
+  setMessage('Loading songs…');
   $('song-search').focus();
+  const selected = artist.id;
+  try {
+    const rows = await loadShard('songs', selected % catalog.song_shards);
+    if (state.artist?.id !== selected) return;
+    const byTitle = new Map();
+    for (const [id, [recordingId, title, credits, score]] of rows) {
+      if (id !== selected) continue;
+      const key = normalize(title);
+      if (!key) continue;
+      let song = byTitle.get(key);
+      if (!song) {
+        song = { id: recordingId, title, credits: new Set(), score };
+        byTitle.set(key, song);
+      }
+      if (score > song.score) {
+        song.id = recordingId;
+        song.title = title;
+        song.score = score;
+      }
+      for (const credit of credits) song.credits.add(credit);
+    }
+    state.songs = [...byTitle.values()];
+    state.songsLoaded = true;
+    setMessage(state.songs.length ? '' : 'This artist has no songs in the shared-credit catalog yet.');
+    if ($('song-search').value.trim()) searchSongs();
+  } catch (error) {
+    if (state.artist?.id === selected) setMessage(error.message, true);
+  }
 }
 
 function searchSongs() {
   state.song = null;
   $('make-move').disabled = true;
-  setMessage('');
-  const query = $('song-search').value.trim().toLocaleLowerCase();
-  if (!query || !state.artist) { $('song-suggestions').replaceChildren(); return; }
-  const results = graph.edges
-    .filter(song => song.artists.includes(state.artist) && song.title.toLocaleLowerCase().includes(query))
-    .sort((a, b) => a.title.localeCompare(b.title) || a.year - b.year)
-    .slice(0, 12)
-    .map(song => ({ id: song.id, label: `${song.title} (${song.year})` }));
+  $('song-suggestions').replaceChildren();
+  if (!state.artist) return;
+  const query = normalize($('song-search').value);
+  if (!query) { setMessage(''); return; }
+  if (!state.songsLoaded) { setMessage('Loading songs…'); return; }
+  if (!state.songs.length) { setMessage('This artist has no songs in the shared-credit catalog yet.'); return; }
+  const results = state.songs.filter(song => normalize(song.title).includes(query))
+    .sort((a, b) => Number(normalize(b.title) === query) - Number(normalize(a.title) === query)
+      || Number(normalize(b.title).startsWith(query)) - Number(normalize(a.title).startsWith(query))
+      || b.score - a.score || a.title.localeCompare(b.title))
+    .slice(0, 12).map(song => ({ id: song.id, label: song.title, song }));
   showResults('song-suggestions', results, chooseSong);
-  if (!results.length) setMessage('No song with that title is in this artist’s sample catalog.');
+  setMessage(results.length ? '' : 'No song found for that artist and title.');
 }
 
-function chooseSong(id) {
-  state.song = graph.edges.find(song => song.id === id);
-  $('song-search').value = `${state.song.title} (${state.song.year})`;
+function chooseSong(result) {
+  state.song = result.song;
+  $('song-search').value = result.song.title;
   $('song-suggestions').replaceChildren();
   $('make-move').disabled = false;
   setMessage('');
@@ -137,20 +221,20 @@ function chooseSong(id) {
 
 function makeMove() {
   if (!state.artist || !state.song) return;
-  const currentName = graph.artists[state.current].name;
-  const nextName = graph.artists[state.artist].name;
-  if (!state.song.artists.includes(state.current) || !state.song.artists.includes(state.artist)) {
-    setMessage(`The credits for “${state.song.title}” do not include both ${currentName} and ${nextName}. Try another song or artist.`, true);
+  const currentName = state.current.name;
+  const nextName = state.artist.name;
+  if (!state.song.credits.has(state.current.id)) {
+    setMessage(`The indexed credits for “${state.song.title}” do not include both ${currentName} and ${nextName}. Try another song or artist.`, true);
     return;
   }
-  const next = state.artist;
   const song = state.song;
+  const next = state.artist;
   state.moves++;
   state.chain.push({ artist: next, song });
   state.current = next;
   renderTurn();
-  if (next === graph.goal) {
-    $('win-copy').textContent = `You connected ${graph.artists[graph.start].name} to ${graph.artists[graph.goal].name} in ${state.moves} moves.`;
+  if (next.id === catalog.goal[0]) {
+    $('win-copy').textContent = `You connected ${catalog.start[1]} to ${catalog.goal[1]} in ${state.moves} moves.`;
     $('win-dialog').hidden = false;
   } else {
     setMessage(`Correct! ${song.title} connects ${currentName} and ${nextName}.`);
@@ -158,10 +242,10 @@ function makeMove() {
 }
 
 function reset() {
-  if (!graph) return;
-  state.current = graph.start;
+  if (!catalog) return;
+  state.current = { id: catalog.start[0], name: catalog.start[1] };
   state.moves = 0;
-  state.chain = [{ artist: graph.start, song: null }];
+  state.chain = [{ artist: state.current, song: null }];
   $('win-dialog').hidden = true;
   renderTurn();
   setMessage('');
@@ -172,3 +256,14 @@ $('song-search').addEventListener('input', searchSongs);
 $('make-move').addEventListener('click', makeMove);
 $('reset').addEventListener('click', reset);
 $('play-again').addEventListener('click', reset);
+
+fetch('data/catalog/manifest.json').then(response => {
+  if (!response.ok) throw new Error('The music catalog could not be loaded.');
+  return response.json();
+}).then(data => {
+  catalog = data;
+  $('start-name').textContent = data.start[1];
+  $('goal-name').textContent = data.goal[1];
+  $('catalog-count').textContent = `${new Intl.NumberFormat().format(data.named_artists)} artists · ${new Intl.NumberFormat().format(data.multi_credit_recordings)} shared-credit recordings`;
+  reset();
+}).catch(error => setMessage(error.message, true));
