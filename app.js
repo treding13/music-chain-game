@@ -1,40 +1,174 @@
-const state = { current: 'eminem', selected: null, moves: 0, chain: ['eminem'], used: new Set() };
+const state = {
+  current: 'eminem',
+  artist: null,
+  song: null,
+  moves: 0,
+  chain: [{ artist: 'eminem', song: null }],
+};
+
 let graph;
-const $ = (id) => document.getElementById(id);
+const $ = id => document.getElementById(id);
 
-fetch('data/music-graph.json').then(r => r.json()).then(data => { graph = data; render(); });
+fetch('data/music-graph.json')
+  .then(response => {
+    if (!response.ok) throw new Error('The music catalog could not be loaded.');
+    return response.json();
+  })
+  .then(data => { graph = data; reset(); })
+  .catch(() => { $('message').textContent = 'The music catalog could not be loaded. Please refresh the page.'; });
 
-function initials(name) { return name.split(/\s+/).map(x => x[0]).slice(0, 2).join(''); }
-function neighbors(id) {
-  return graph.edges.filter(edge => edge.artists.includes(id) && !state.used.has(edge.id)).map(edge => ({ edge, artist: edge.artists.find(a => a !== id) })).filter(x => x.artist);
+function initials(name) {
+  return name.split(/\s+/).map(part => part[0]).slice(0, 2).join('');
 }
-function render() {
+
+function clearSuggestions() {
+  $('artist-suggestions').replaceChildren();
+  $('song-suggestions').replaceChildren();
+}
+
+function setMessage(text, isError = false) {
+  $('message').textContent = text;
+  $('message').classList.toggle('error', isError);
+}
+
+function renderChain() {
+  const list = $('chain');
+  list.replaceChildren();
+  state.chain.forEach((step, index) => {
+    const artist = graph.artists[step.artist];
+    const item = document.createElement('li');
+    if (index === 0) item.className = 'first';
+    const badge = document.createElement('span');
+    badge.textContent = initials(artist.name);
+    const details = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = artist.name;
+    const caption = document.createElement('small');
+    caption.textContent = index ? `${step.song.title} · ${step.song.year}` : 'Starting artist';
+    details.append(title, caption);
+    item.append(badge, details);
+    list.append(item);
+  });
+}
+
+function renderTurn() {
   const current = graph.artists[state.current];
   $('current-artist').textContent = current.name;
-  $('artist-search').placeholder = `Search artists connected to ${current.name}`;
   $('moves').textContent = state.moves;
-  $('chain').innerHTML = state.chain.map((item, i) => { const id = typeof item === 'string' ? item : item.id; const artist = graph.artists[id]; const edge = i ? graph.edges.find(e => e.id === item.edge) : null; return `<li class="${i === 0 ? 'first' : ''}"><span>${initials(artist.name)}</span><div><strong>${artist.name}</strong><small>${i ? `${edge.title} · ${edge.year}` : 'Starting artist'}</small></div></li>`; }).join('');
-  $('suggestions').innerHTML = ''; $('artist-search').value = ''; state.selected = null; $('make-move').disabled = true;
-  $('selected-credit').className = 'credit-preview empty'; $('selected-credit').textContent = 'Select an artist to see the song that connects you.';
+  $('artist-search').value = '';
+  $('artist-search').placeholder = 'Search any artist in this sample';
+  $('song-search').value = '';
+  $('song-step').hidden = true;
+  $('make-move').disabled = true;
+  state.artist = null;
+  state.song = null;
+  clearSuggestions();
+  renderChain();
 }
-function showSuggestions() {
-  const query = $('artist-search').value.toLowerCase().trim();
-  const matches = neighbors(state.current).filter(({ artist }) => graph.artists[artist].name.toLowerCase().includes(query)).slice(0, 7);
-  $('suggestions').innerHTML = matches.map(({ artist, edge }) => `<button class="suggestion" data-artist="${artist}" data-edge="${edge.id}" role="option">${graph.artists[artist].name}</button>`).join('');
-  document.querySelectorAll('.suggestion').forEach(button => button.onclick = () => choose(button.dataset.artist, button.dataset.edge));
+
+function showResults(containerId, results, onChoose) {
+  const container = $(containerId);
+  container.replaceChildren();
+  for (const result of results) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'suggestion';
+    button.setAttribute('role', 'option');
+    button.textContent = result.label;
+    button.addEventListener('click', () => onChoose(result.id));
+    container.append(button);
+  }
 }
-function choose(artist, edgeId) {
-  const edge = graph.edges.find(e => e.id === edgeId); state.selected = { artist, edgeId };
-  $('artist-search').value = graph.artists[artist].name; $('suggestions').innerHTML = '';
-  $('selected-credit').className = 'credit-preview'; $('selected-credit').innerHTML = `<b>${edge.title}</b> <span>(${edge.year})</span> connects ${graph.artists[state.current].name} and ${graph.artists[artist].name}.`;
+
+function searchArtists() {
+  state.artist = null;
+  state.song = null;
+  $('song-step').hidden = true;
+  $('song-search').value = '';
+  $('song-suggestions').replaceChildren();
+  $('make-move').disabled = true;
+  setMessage('');
+  const query = $('artist-search').value.trim().toLocaleLowerCase();
+  if (!query) { $('artist-suggestions').replaceChildren(); return; }
+  const results = Object.entries(graph.artists)
+    .filter(([id, artist]) => id !== state.current && artist.name.toLocaleLowerCase().includes(query))
+    .sort((a, b) => a[1].name.localeCompare(b[1].name))
+    .slice(0, 10)
+    .map(([id, artist]) => ({ id, label: artist.name }));
+  showResults('artist-suggestions', results, chooseArtist);
+  if (!results.length) setMessage('No artist with that name is in this sample catalog.');
+}
+
+function chooseArtist(id) {
+  state.artist = id;
+  state.song = null;
+  $('artist-search').value = graph.artists[id].name;
+  $('artist-suggestions').replaceChildren();
+  $('song-step').hidden = false;
+  $('song-search').value = '';
+  $('song-search').placeholder = `Search songs by ${graph.artists[id].name}`;
+  $('make-move').disabled = true;
+  setMessage('');
+  $('song-search').focus();
+}
+
+function searchSongs() {
+  state.song = null;
+  $('make-move').disabled = true;
+  setMessage('');
+  const query = $('song-search').value.trim().toLocaleLowerCase();
+  if (!query || !state.artist) { $('song-suggestions').replaceChildren(); return; }
+  const results = graph.edges
+    .filter(song => song.artists.includes(state.artist) && song.title.toLocaleLowerCase().includes(query))
+    .sort((a, b) => a.title.localeCompare(b.title) || a.year - b.year)
+    .slice(0, 12)
+    .map(song => ({ id: song.id, label: `${song.title} (${song.year})` }));
+  showResults('song-suggestions', results, chooseSong);
+  if (!results.length) setMessage('No song with that title is in this artist’s sample catalog.');
+}
+
+function chooseSong(id) {
+  state.song = graph.edges.find(song => song.id === id);
+  $('song-search').value = `${state.song.title} (${state.song.year})`;
+  $('song-suggestions').replaceChildren();
   $('make-move').disabled = false;
+  setMessage('');
 }
+
 function makeMove() {
-  if (!state.selected) return;
-  const { artist, edgeId } = state.selected;
-  state.used.add(edgeId); state.moves++; state.chain.push({ ...graph.artists[artist], id: artist, edge: edgeId }); state.current = artist;
-  if (artist === graph.goal) { render(); $('win-copy').textContent = `You connected ${graph.artists[graph.start].name} to ${graph.artists[graph.goal].name} in ${state.moves} moves.`; $('win-dialog').hidden = false; return; }
-  render(); $('message').textContent = `Nice. Now find a song that connects ${graph.artists[artist].name} to someone new.`;
+  if (!state.artist || !state.song) return;
+  const currentName = graph.artists[state.current].name;
+  const nextName = graph.artists[state.artist].name;
+  if (!state.song.artists.includes(state.current) || !state.song.artists.includes(state.artist)) {
+    setMessage(`The credits for “${state.song.title}” do not include both ${currentName} and ${nextName}. Try another song or artist.`, true);
+    return;
+  }
+  const next = state.artist;
+  const song = state.song;
+  state.moves++;
+  state.chain.push({ artist: next, song });
+  state.current = next;
+  renderTurn();
+  if (next === graph.goal) {
+    $('win-copy').textContent = `You connected ${graph.artists[graph.start].name} to ${graph.artists[graph.goal].name} in ${state.moves} moves.`;
+    $('win-dialog').hidden = false;
+  } else {
+    setMessage(`Correct! ${song.title} connects ${currentName} and ${nextName}.`);
+  }
 }
-function reset() { state.current = graph.start; state.selected = null; state.moves = 0; state.chain = [graph.start]; state.used = new Set(); $('message').textContent = ''; $('win-dialog').hidden = true; render(); }
-$('artist-search').addEventListener('input', showSuggestions); $('artist-search').addEventListener('focus', showSuggestions); $('make-move').onclick = makeMove; $('reset').onclick = reset; $('play-again').onclick = reset;
+
+function reset() {
+  if (!graph) return;
+  state.current = graph.start;
+  state.moves = 0;
+  state.chain = [{ artist: graph.start, song: null }];
+  $('win-dialog').hidden = true;
+  renderTurn();
+  setMessage('');
+}
+
+$('artist-search').addEventListener('input', searchArtists);
+$('song-search').addEventListener('input', searchSongs);
+$('make-move').addEventListener('click', makeMove);
+$('reset').addEventListener('click', reset);
+$('play-again').addEventListener('click', reset);

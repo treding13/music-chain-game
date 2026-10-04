@@ -27,14 +27,18 @@
         <div class="play-card">
           <div class="turn-header"><div><p class="eyebrow">YOUR NEXT MOVE</p><h2 id="current-artist">Eminem</h2></div><div class="move-count"><strong id="moves">0</strong><span>moves</span></div></div>
           <label for="artist-search">Choose a collaborator</label>
-          <div class="search-wrap"><input id="artist-search" autocomplete="off" placeholder="Search artists connected to Eminem" /><div id="suggestions" class="suggestions" role="listbox"></div></div>
-          <div id="selected-credit" class="credit-preview empty">Select an artist to see the song that connects you.</div>
+          <div class="search-wrap"><input id="artist-search" autocomplete="off" placeholder="Search any artist in this sample" aria-autocomplete="list" aria-controls="artist-suggestions" /><div id="artist-suggestions" class="suggestions" role="listbox"></div></div>
+          <div id="song-step" class="song-step" hidden>
+            <label for="song-search">Which song connects them?</label>
+            <div class="search-wrap"><input id="song-search" autocomplete="off" placeholder="Search songs by the selected artist" aria-autocomplete="list" aria-controls="song-suggestions" /><div id="song-suggestions" class="suggestions" role="listbox"></div></div>
+            <p class="hint">Song titles and years only. We'll check the credits after your guess.</p>
+          </div>
           <button id="make-move" class="primary" disabled>Make connection <span>→</span></button>
           <p id="message" class="message" aria-live="polite"></p>
         </div>
         <aside class="chain-card"><p class="eyebrow">YOUR CHAIN</p><ol id="chain" class="chain"><li class="first"><span>E</span><div><strong>Eminem</strong><small>Starting artist</small></div></li></ol></aside>
       </section>
-      <section class="rules"><div><p class="eyebrow">HOW IT WORKS</p><h2>Every move needs a song.</h2></div><p>Each adjacent pair must be credited performers on the same recording. This sample accepts lead, featured, and co-billed artist credits—no producers, writers, samples, or remixers.</p></section>
+      <section class="rules"><div><p class="eyebrow">HOW IT WORKS</p><h2>Every move needs a song.</h2></div><p>Search for any artist in the catalog, then pick one of their songs. Your move counts only if that song credits both artists. This sample accepts lead, featured, and co-billed artists.</p></section>
       <footer>Music metadata prototype · Built from a local, curated graph · <a href="https://musicbrainz.org/" target="_blank" rel="noreferrer">MusicBrainz</a> is the planned metadata source</footer>
     </main>
     <div id="win-dialog" class="dialog-backdrop" hidden><section class="dialog"><p class="eyebrow">CHAIN COMPLETE</p><h2>You found the connection.</h2><p id="win-copy"></p><button id="play-again" class="primary">Play again <span>↻</span></button></section></div>
