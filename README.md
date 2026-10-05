@@ -3,6 +3,10 @@
 A six-degrees music game hosted as a static Cloudflare Pages site. Players choose
 an artist, then a song title; a move succeeds when a MusicBrainz recording
 credits both artists, or when a credited group connects documented members.
+Players can undo the last move, rewind to any earlier artist (removing all later
+links), or start over after confirmation. Completing a chain shows the route and
+offers spoiler-free or detailed text sharing, with copy-to-clipboard as a
+fallback when native sharing is unavailable.
 
 The site uses a local snapshot, not the MusicBrainz web API. It currently indexes
 1,499,932 named artists and 4,568,865 multi-artist recordings, plus group-only

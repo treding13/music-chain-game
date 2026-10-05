@@ -98,14 +98,27 @@ function renderChain() {
       ? `${step.song.title}${step.song.viaGroup ? ` · via ${step.song.viaGroup}` : ''}`
       : 'Starting artist';
     details.append(title, caption);
+    if (index < state.chain.length - 1) {
+      const rewind = document.createElement('button');
+      rewind.type = 'button';
+      rewind.className = 'rewind-link';
+      rewind.textContent = 'Rewind here';
+      rewind.setAttribute('aria-label', `Rewind to ${step.artist.name} and remove ${state.chain.length - index - 1} later ${state.chain.length - index - 1 === 1 ? 'link' : 'links'}`);
+      rewind.addEventListener('click', () => rewindTo(index));
+      details.append(rewind);
+    }
     item.append(badge, details);
     list.append(item);
   }
+  $('undo-move').disabled = state.chain.length < 2;
 }
 
 function renderTurn() {
   $('current-artist').textContent = state.current.name;
   $('moves').textContent = state.moves;
+  const complete = state.current.id === catalog.goal[0];
+  $('artist-search').disabled = complete;
+  $('artist-search').placeholder = complete ? 'Chain complete — rewind to try another route' : 'Search artists by name';
   $('artist-search').value = '';
   $('song-search').value = '';
   $('song-step').hidden = true;
@@ -178,7 +191,7 @@ async function searchArtists() {
 }
 
 async function chooseArtist(artist) {
-  state.artistRequest++;
+  const request = ++state.artistRequest;
   state.artist = { id: artist.id, name: artist.name };
   state.song = null;
   state.songs = [];
@@ -197,7 +210,7 @@ async function chooseArtist(artist) {
     const creditedIds = new Set([selected, ...memberships.keys()]);
     const shardNumbers = new Set([...creditedIds].map(id => id % catalog.song_shards));
     const shardRows = await Promise.all([...shardNumbers].map(number => loadShard('songs', number)));
-    if (state.artist?.id !== selected) return;
+    if (request !== state.artistRequest || state.artist?.id !== selected) return;
     const byTitle = new Map();
     for (const rows of shardRows) {
       for (const [id, [recordingId, title, credits, score]] of rows) {
@@ -222,7 +235,7 @@ async function chooseArtist(artist) {
     setMessage(state.songs.length ? '' : 'This artist has no songs in the shared-credit catalog yet.');
     if ($('song-search').value.trim()) searchSongs();
   } catch (error) {
-    if (state.artist?.id === selected) setMessage(error.message, true);
+    if (request === state.artistRequest && state.artist?.id === selected) setMessage(error.message, true);
   }
 }
 
@@ -312,10 +325,30 @@ async function makeMove() {
   renderTurn();
   if (next.id === catalog.goal[0]) {
     setMessage('');
-    $('win-copy').textContent = `You connected ${catalog.start[1]} to ${catalog.goal[1]} in ${state.moves} moves.`;
-    $('win-dialog').hidden = false;
+    showWin();
   } else {
     setMessage(`Correct! ${song.title} connects ${current.name} and ${next.name}${song.viaGroup ? ` through ${song.viaGroup} membership` : ''}.`);
+  }
+}
+
+function rewindTo(index) {
+  if (!catalog || index < 0 || index >= state.chain.length - 1) return;
+  const removed = state.chain.length - index - 1;
+  state.chain = state.chain.slice(0, index + 1);
+  state.moves = state.chain.length - 1;
+  state.current = state.chain.at(-1).artist;
+  $('win-dialog').hidden = true;
+  renderTurn();
+  setMessage(`Removed ${removed} ${removed === 1 ? 'link' : 'links'}. Continue from ${state.current.name}.`);
+  $('artist-search').focus();
+}
+
+function startOver() {
+  if (state.chain.length > 1) {
+    $('reset-dialog').hidden = false;
+    $('cancel-reset').focus();
+  } else {
+    reset();
   }
 }
 
@@ -325,15 +358,83 @@ function reset() {
   state.moves = 0;
   state.chain = [{ artist: state.current, song: null }];
   $('win-dialog').hidden = true;
+  $('reset-dialog').hidden = true;
+  $('share-status').textContent = '';
   renderTurn();
   setMessage('');
+}
+
+function shareText() {
+  const route = state.chain.map(step => step.artist.name).join(' → ');
+  const intro = `Music Chain 🎵\n${catalog.start[1]} → ${catalog.goal[1]} in ${state.moves} ${state.moves === 1 ? 'move' : 'moves'}`;
+  if (!$('include-songs').checked) {
+    return `${intro}\n${route}\nCan you find another route?\n${location.origin}/`;
+  }
+  const steps = state.chain.slice(1).map(step =>
+    `↳ ${step.song.title}${step.song.viaGroup ? ` (via ${step.song.viaGroup})` : ''} → ${step.artist.name}`);
+  return `${intro}\n${state.chain[0].artist.name}\n${steps.join('\n')}\n${location.origin}/`;
+}
+
+function renderSharePreview() {
+  $('share-preview').textContent = shareText();
+  $('share-status').textContent = '';
+}
+
+function showWin() {
+  $('win-copy').textContent = `You connected ${catalog.start[1]} to ${catalog.goal[1]} in ${state.moves} ${state.moves === 1 ? 'move' : 'moves'}.`;
+  const list = $('win-chain');
+  list.replaceChildren();
+  for (const [index, step] of state.chain.entries()) {
+    const item = document.createElement('li');
+    const name = document.createElement('strong');
+    name.textContent = step.artist.name;
+    item.append(name);
+    if (index > 0) {
+      const song = document.createElement('small');
+      song.textContent = `${step.song.title}${step.song.viaGroup ? ` · via ${step.song.viaGroup}` : ''}`;
+      item.append(song);
+    }
+    list.append(item);
+  }
+  $('include-songs').checked = false;
+  $('native-share').hidden = typeof navigator.share !== 'function';
+  renderSharePreview();
+  $('win-dialog').hidden = false;
+  $('copy-result').focus();
+}
+
+async function copyResult() {
+  const value = shareText();
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+    await navigator.clipboard.writeText(value);
+    $('share-status').textContent = 'Result copied to clipboard.';
+  } catch {
+    $('share-status').textContent = 'Could not copy automatically. Select the preview text to copy it.';
+  }
+}
+
+async function nativeShare() {
+  try {
+    await navigator.share({ title: 'Music Chain result', text: shareText() });
+    $('share-status').textContent = 'Shared!';
+  } catch (error) {
+    if (error.name !== 'AbortError') $('share-status').textContent = 'Sharing was unavailable. Try Copy result.';
+  }
 }
 
 $('artist-search').addEventListener('input', searchArtists);
 $('song-search').addEventListener('input', searchSongs);
 $('make-move').addEventListener('click', makeMove);
-$('reset').addEventListener('click', reset);
+$('reset').addEventListener('click', startOver);
+$('confirm-reset').addEventListener('click', reset);
+$('cancel-reset').addEventListener('click', () => { $('reset-dialog').hidden = true; $('reset').focus(); });
+$('undo-move').addEventListener('click', () => rewindTo(state.chain.length - 2));
 $('play-again').addEventListener('click', reset);
+$('edit-chain').addEventListener('click', () => { $('win-dialog').hidden = true; $('undo-move').focus(); });
+$('include-songs').addEventListener('change', renderSharePreview);
+$('copy-result').addEventListener('click', copyResult);
+$('native-share').addEventListener('click', nativeShare);
 
 fetch('data/catalog/manifest.json').then(response => {
   if (!response.ok) throw new Error('The music catalog could not be loaded.');

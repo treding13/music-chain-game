@@ -8,11 +8,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=share1" />
   </head>
   <body>
     <main class="shell">
-      <nav><a class="brand" href="/">music<span>chain</span></a><span class="beta">OPEN DATA BETA</span><button id="reset" class="text-button">New game</button></nav>
+      <nav><a class="brand" href="/">music<span>chain</span></a><span class="beta">OPEN DATA BETA</span><button id="reset" class="text-button">Start over</button></nav>
       <section class="hero">
         <p class="eyebrow">SIX DEGREES OF MUSIC</p>
         <h1>Connect the artists.</h1>
@@ -37,12 +37,13 @@
           <button id="make-move" class="primary" disabled>Make connection <span>→</span></button>
           <p id="message" class="message" aria-live="polite"></p>
         </div>
-        <aside class="chain-card"><p class="eyebrow">YOUR CHAIN</p><ol id="chain" class="chain"><li class="first"><span>E</span><div><strong>Eminem</strong><small>Starting artist</small></div></li></ol></aside>
+        <aside class="chain-card"><p class="eyebrow">YOUR CHAIN</p><ol id="chain" class="chain"><li class="first"><span>E</span><div><strong>Eminem</strong><small>Starting artist</small></div></li></ol><button id="undo-move" class="secondary chain-undo" disabled>Undo last move</button></aside>
       </section>
       <section class="rules"><div><p class="eyebrow">HOW IT WORKS</p><h2>Every move needs a song.</h2></div><p>Search for an artist, then pick a song. A move counts when a recording credits both artists, or a credited group connects documented members with overlapping membership periods. Group connections are labeled in your chain. Membership is not proof that each person performed on that particular recording; uncredited guests do not count.</p></section>
       <footer>Music metadata prototype · Built from CC0 <a href="https://musicbrainz.org/doc/Canonical_MusicBrainz_data" target="_blank" rel="noreferrer">MusicBrainz canonical data</a> and <a href="https://musicbrainz.org/doc/MusicBrainz_Database/Download" target="_blank" rel="noreferrer">core data</a> · No live music API calls</footer>
     </main>
-    <div id="win-dialog" class="dialog-backdrop" hidden><section class="dialog"><p class="eyebrow">CHAIN COMPLETE</p><h2>You found the connection.</h2><p id="win-copy"></p><button id="play-again" class="primary">Play again <span>↻</span></button></section></div>
-    <script src="app.js"></script>
+    <div id="win-dialog" class="dialog-backdrop" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="win-title"><p class="eyebrow">CHAIN COMPLETE</p><h2 id="win-title">You found the connection.</h2><p id="win-copy"></p><ol id="win-chain" class="win-chain"></ol><div class="share-box"><p class="eyebrow">SHARE YOUR RESULT</p><label class="share-option"><input id="include-songs" type="checkbox" /> Include songs and group details (spoilers)</label><pre id="share-preview" class="share-preview"></pre><div class="share-actions"><button id="native-share" class="primary" hidden>Share result</button><button id="copy-result" class="primary">Copy result</button></div><p id="share-status" class="share-status" role="status" aria-live="polite"></p></div><div class="win-actions"><button id="edit-chain" class="secondary">Edit chain</button><button id="play-again" class="secondary">Play again ↻</button></div></section></div>
+    <div id="reset-dialog" class="dialog-backdrop" hidden><section class="dialog reset-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title"><p class="eyebrow">START OVER</p><h2 id="reset-title">Clear your chain?</h2><p>This removes every link and takes you back to Eminem.</p><div class="win-actions"><button id="cancel-reset" class="secondary">Keep playing</button><button id="confirm-reset" class="primary">Start over</button></div></section></div>
+    <script src="app.js?v=share1"></script>
   </body>
 </html>
