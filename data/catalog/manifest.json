@@ -1,5 +1,5 @@
 {
-  "source": "MusicBrainz canonical data 2026-10-03 (CC0)",
+  "source": "MusicBrainz canonical data 2026-10-03 and core data 2026-09-30 (CC0)",
   "start": [
     1086342,
     "Eminem"
@@ -10,7 +10,10 @@
   ],
   "named_artists": 1499932,
   "multi_credit_recordings": 4568865,
-  "song_index_rows": 8624731,
+  "group_only_recordings": 2039887,
+  "membership_periods": 159137,
+  "song_index_rows": 10664618,
   "artist_shards": 512,
-  "song_shards": 256
+  "song_shards": 256,
+  "membership_shards": 256
 }

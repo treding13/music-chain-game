@@ -11,6 +11,7 @@ const state = {
 
 const $ = id => document.getElementById(id);
 const shardCache = new Map();
+const membershipCache = new Map();
 let catalog;
 
 function normalize(value) {
@@ -18,6 +19,10 @@ function normalize(value) {
     .replace(/\p{M}/gu, '')
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim().replace(/\s+/g, ' ');
+}
+
+function normalizeSong(value) {
+  return normalize(value).replace(/\btha\b/g, 'the');
 }
 
 function bucket(prefix, count) {
@@ -42,6 +47,25 @@ async function loadShard(kind, number) {
     }));
   }
   return shardCache.get(path);
+}
+
+async function loadMemberships(id) {
+  if (!membershipCache.has(id)) {
+    membershipCache.set(id, loadShard('memberships', id % catalog.membership_shards)
+      .then(rows => {
+        const groups = new Map();
+        for (const [member, group, name, begin, end] of rows) {
+          if (member !== id) continue;
+          if (!groups.has(group)) groups.set(group, []);
+          groups.get(group).push({ name, begin, end });
+        }
+        return groups;
+      }).catch(error => {
+        membershipCache.delete(id);
+        throw error;
+      }));
+  }
+  return membershipCache.get(id);
 }
 
 function initials(name) {
@@ -70,7 +94,9 @@ function renderChain() {
     const title = document.createElement('strong');
     title.textContent = step.artist.name;
     const caption = document.createElement('small');
-    caption.textContent = step.song ? step.song.title : 'Starting artist';
+    caption.textContent = step.song
+      ? `${step.song.title}${step.song.viaGroup ? ` · via ${step.song.viaGroup}` : ''}`
+      : 'Starting artist';
     details.append(title, caption);
     item.append(badge, details);
     list.append(item);
@@ -126,9 +152,11 @@ async function searchArtists() {
     const rows = await loadShard('artists', bucket(firstToken, catalog.artist_shards));
     if (request !== state.artistRequest) return;
     const seenNames = new Set();
+    const compactQuery = query.replace(/ /g, '');
     const matches = rows.filter(([id, name]) => {
       const normalized = normalize(name);
-      return id !== state.current.id && normalized.includes(query);
+      return id !== state.current.id
+        && (normalized.includes(query) || normalized.replace(/ /g, '').includes(compactQuery));
     }).sort((a, b) => {
       const an = normalize(a[1]);
       const bn = normalize(b[1]);
@@ -165,24 +193,29 @@ async function chooseArtist(artist) {
   $('song-search').focus();
   const selected = artist.id;
   try {
-    const rows = await loadShard('songs', selected % catalog.song_shards);
+    const memberships = await loadMemberships(selected);
+    const creditedIds = new Set([selected, ...memberships.keys()]);
+    const shardNumbers = new Set([...creditedIds].map(id => id % catalog.song_shards));
+    const shardRows = await Promise.all([...shardNumbers].map(number => loadShard('songs', number)));
     if (state.artist?.id !== selected) return;
     const byTitle = new Map();
-    for (const [id, [recordingId, title, credits, score]] of rows) {
-      if (id !== selected) continue;
-      const key = normalize(title);
-      if (!key) continue;
-      let song = byTitle.get(key);
-      if (!song) {
-        song = { id: recordingId, title, credits: new Set(), score };
-        byTitle.set(key, song);
+    for (const rows of shardRows) {
+      for (const [id, [recordingId, title, credits, score]] of rows) {
+        if (!creditedIds.has(id)) continue;
+        const key = normalizeSong(title);
+        if (!key) continue;
+        let song = byTitle.get(key);
+        if (!song) {
+          song = { id: recordingId, title, variants: new Map(), score };
+          byTitle.set(key, song);
+        }
+        if (score > song.score) {
+          song.id = recordingId;
+          song.title = title;
+          song.score = score;
+        }
+        if (!song.variants.has(recordingId)) song.variants.set(recordingId, new Set(credits));
       }
-      if (score > song.score) {
-        song.id = recordingId;
-        song.title = title;
-        song.score = score;
-      }
-      for (const credit of credits) song.credits.add(credit);
     }
     state.songs = [...byTitle.values()];
     state.songsLoaded = true;
@@ -198,13 +231,13 @@ function searchSongs() {
   $('make-move').disabled = true;
   $('song-suggestions').replaceChildren();
   if (!state.artist) return;
-  const query = normalize($('song-search').value);
+  const query = normalizeSong($('song-search').value);
   if (!query) { setMessage(''); return; }
   if (!state.songsLoaded) { setMessage('Loading songs…'); return; }
   if (!state.songs.length) { setMessage('This artist has no songs in the shared-credit catalog yet.'); return; }
-  const results = state.songs.filter(song => normalize(song.title).includes(query))
-    .sort((a, b) => Number(normalize(b.title) === query) - Number(normalize(a.title) === query)
-      || Number(normalize(b.title).startsWith(query)) - Number(normalize(a.title).startsWith(query))
+  const results = state.songs.filter(song => normalizeSong(song.title).includes(query))
+    .sort((a, b) => Number(normalizeSong(b.title) === query) - Number(normalizeSong(a.title) === query)
+      || Number(normalizeSong(b.title).startsWith(query)) - Number(normalizeSong(a.title).startsWith(query))
       || b.score - a.score || a.title.localeCompare(b.title))
     .slice(0, 12).map(song => ({ id: song.id, label: song.title, song }));
   showResults('song-suggestions', results, chooseSong);
@@ -219,25 +252,70 @@ function chooseSong(result) {
   setMessage('');
 }
 
-function makeMove() {
+function periodsOverlap(first, second) {
+  return Math.max(first.begin ?? -Infinity, second.begin ?? -Infinity)
+    <= Math.min(first.end ?? Infinity, second.end ?? Infinity);
+}
+
+function connectionForCredits(credits, currentId, nextId, currentGroups, nextGroups) {
+  if (credits.has(currentId) && credits.has(nextId)) return { viaGroup: null };
+  for (const groupId of credits) {
+    const currentPeriods = currentGroups.get(groupId);
+    const nextPeriods = nextGroups.get(groupId);
+    if (currentPeriods && nextPeriods &&
+        currentPeriods.some(first => nextPeriods.some(second => periodsOverlap(first, second)))) {
+      return { viaGroup: currentPeriods[0].name };
+    }
+    if (currentPeriods && (credits.has(nextId) || groupId === nextId)) {
+      return { viaGroup: currentPeriods[0].name };
+    }
+    if (nextPeriods && (credits.has(currentId) || groupId === currentId)) {
+      return { viaGroup: nextPeriods[0].name };
+    }
+  }
+  return null;
+}
+
+async function makeMove() {
   if (!state.artist || !state.song) return;
-  const currentName = state.current.name;
-  const nextName = state.artist.name;
-  if (!state.song.credits.has(state.current.id)) {
-    setMessage(`The indexed credits for “${state.song.title}” do not include both ${currentName} and ${nextName}. Try another song or artist.`, true);
+  const current = state.current;
+  const next = state.artist;
+  const selectedSong = state.song;
+  $('make-move').disabled = true;
+  setMessage('Checking connection…');
+  let connection = null;
+  try {
+    const [currentGroups, nextGroups] = await Promise.all([
+      loadMemberships(current.id), loadMemberships(next.id),
+    ]);
+    if (state.current !== current || state.artist !== next || state.song !== selectedSong) return;
+    for (const credits of selectedSong.variants.values()) {
+      connection = connectionForCredits(credits, current.id, next.id, currentGroups, nextGroups);
+      if (connection) break;
+    }
+  } catch (error) {
+    if (state.current === current && state.artist === next && state.song === selectedSong) {
+      $('make-move').disabled = false;
+      setMessage(error.message, true);
+    }
     return;
   }
-  const song = state.song;
-  const next = state.artist;
+  if (!connection) {
+    $('make-move').disabled = false;
+    setMessage(`No indexed recording of “${selectedSong.title}” connects ${current.name} and ${next.name} through credits or documented group membership.`, true);
+    return;
+  }
+  const song = { title: selectedSong.title, viaGroup: connection.viaGroup };
   state.moves++;
   state.chain.push({ artist: next, song });
   state.current = next;
   renderTurn();
   if (next.id === catalog.goal[0]) {
+    setMessage('');
     $('win-copy').textContent = `You connected ${catalog.start[1]} to ${catalog.goal[1]} in ${state.moves} moves.`;
     $('win-dialog').hidden = false;
   } else {
-    setMessage(`Correct! ${song.title} connects ${currentName} and ${nextName}.`);
+    setMessage(`Correct! ${song.title} connects ${current.name} and ${next.name}${song.viaGroup ? ` through ${song.viaGroup} membership` : ''}.`);
   }
 }
 
@@ -264,6 +342,6 @@ fetch('data/catalog/manifest.json').then(response => {
   catalog = data;
   $('start-name').textContent = data.start[1];
   $('goal-name').textContent = data.goal[1];
-  $('catalog-count').textContent = `${new Intl.NumberFormat().format(data.named_artists)} artists · ${new Intl.NumberFormat().format(data.multi_credit_recordings)} shared-credit recordings`;
+  $('catalog-count').textContent = `${new Intl.NumberFormat().format(data.named_artists)} artists · ${new Intl.NumberFormat().format(data.multi_credit_recordings + data.group_only_recordings)} indexed recordings`;
   reset();
 }).catch(error => setMessage(error.message, true));
